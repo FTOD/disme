@@ -1,8 +1,9 @@
 extern crate capstone;
 
 use capstone::prelude::*;
-
-const X86_CODE: &'static [u8] = b"\x55\x48\x8b\x05\xb8\x13\x00\x00\xe9\x14\x9e\x08\x00\x45\x31\xe4";
+use object::{Object, ObjectSection};
+use std::env;
+use std::fs;
 
 /// Print register names
 fn reg_names(cs: &Capstone, regs: &[RegId]) -> String {
@@ -17,15 +18,28 @@ fn group_names(cs: &Capstone, regs: &[InsnGroupId]) -> String {
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    println!("{:?}", args);
+    if args.len() != 2 {
+        println!("You should pass exactly one argument as the input binary. Abort.");
+        return;
+    }
+    let input_prog = fs::read(&args[1]).expect("Something went wrong when reading the file");
+    let obj_file = object::File::parse(&*input_prog).expect("Can read the elf file");
+    let data = obj_file.section_by_name(".text").unwrap();
+    let data: &[u8] = data.data().unwrap();
+
+    // Create Capston reader
     let cs = Capstone::new()
-        .x86()
-        .mode(arch::x86::ArchMode::Mode64)
-        .syntax(arch::x86::ArchSyntax::Att)
+        .arm()
+        .mode(arch::arm::ArchMode::Thumb)
         .detail(true)
         .build()
         .expect("Failed to create Capstone object");
 
-    let insns = cs.disasm_all(X86_CODE, 0x1000)
+    // Disasembly
+    let insns = cs
+        .disasm_all(data, 0x1000)
         .expect("Failed to disassemble");
     println!("Found {} instructions", insns.len());
     for i in insns.as_ref() {
